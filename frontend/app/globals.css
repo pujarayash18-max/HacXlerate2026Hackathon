@@ -1,0 +1,14 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+body { @apply bg-stone-50 text-stone-900 antialiased; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.card { @apply bg-white border border-stone-300 rounded p-4; }
+.btn { @apply bg-teal-800 text-white rounded px-3 py-1.5 text-sm font-medium hover:bg-teal-900 disabled:opacity-50 disabled:cursor-not-allowed; }
+.btn2 { @apply bg-white text-stone-800 border border-stone-400 rounded px-3 py-1.5 text-sm hover:bg-stone-100 disabled:opacity-50 disabled:cursor-not-allowed; }
+.btns { @apply bg-white text-stone-800 border border-stone-400 rounded px-2 py-1 text-xs hover:bg-stone-100; }
+.btnd { @apply bg-white text-red-800 border border-red-400 rounded px-2 py-1 text-xs hover:bg-red-50; }
+.inp { @apply border border-stone-400 rounded px-2.5 py-1.5 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-teal-700; }
+.lbl { @apply block text-sm font-medium mb-1; }
+.muted { @apply text-sm text-stone-600; }
+.err { @apply text-sm text-red-800; }
+.prose-doc h2 { @apply text-lg font-semibold mt-6 mb-2; }
+.prose-doc p, .prose-doc li { @apply text-sm leading-6 text-stone-800; }
+.prose-doc ul { @apply list-disc ml-5 space-y-1; }
