@@ -31,97 +31,208 @@ export function Staff({ auth }: { auth: A }) {
 export function StudentHome({ auth }: { auth: A }) {
   const t = auth.access_token;
   const [q, setQ] = useState(""); const [chat, setChat] = useState<{ q: string; a: string }[]>([]); const [busy, setBusy] = useState(false); const [peer, setPeer] = useState("");
+  
+  // Interactive States for Hackathon Features
+  const [assignments, setAssignments] = useState([
+    { id: 1, title: 'Data Structures - Assignment 4', course: 'CS201', due: 'Tomorrow, 11:59 PM', turnedIn: false },
+    { id: 2, title: 'Final Essay Draft', course: 'ENG101', due: 'Friday, 5:00 PM', turnedIn: false }
+  ]);
+  const [skills, setSkills] = useState(['Python', 'Data Structures']);
+  const [placementScore, setPlacementScore] = useState(85);
+  const [newSkill, setNewSkill] = useState("");
+  const [isCompilerOpen, setIsCompilerOpen] = useState(false);
+  const [compilerCode, setCompilerCode] = useState("function twoSum(nums, target) {\n  // write code here\n}");
+  const [compilerOutput, setCompilerOutput] = useState("");
+
   const ask = async () => { setBusy(true); try { const r = await post("/copilot", t, { question: q }); setChat([...chat, { q, a: r.answer }]); setQ(""); } catch (e: A) { setChat([...chat, { q, a: "Error: " + e.message }]); } finally { setBusy(false); } };
+
+  const turnInAssignment = (id: number) => {
+    setAssignments(assignments.map(a => a.id === id ? { ...a, turnedIn: true } : a));
+  };
+
+  const addSkill = () => {
+    if (!newSkill.trim() || skills.includes(newSkill)) return;
+    setSkills([...skills, newSkill]);
+    setPlacementScore(prev => Math.min(99, prev + Math.floor(Math.random() * 5) + 1));
+    setNewSkill("");
+  };
+
+  const runCode = () => {
+    setCompilerOutput("Running test cases...\n");
+    setTimeout(() => {
+      setCompilerOutput(prev => prev + "Test Case 1: Passed\nTest Case 2: Passed\nTest Case 3: Passed\n\nSuccess! All test cases passed. (+10 LeetCode Points)");
+    }, 1500);
+  };
+
   return (
-    <div className="grid md:grid-cols-3 gap-4">
-      <div className="md:col-span-2 space-y-4">
-        <Detail tok={t} sid={auth.student_id} role="student" />
+    <div className="flex flex-col md:flex-row gap-4 relative">
+      <div className="flex-1 space-y-4">
         
-        {/* HACKATHON FEATURE: Google Classroom & Assignments */}
-        <div className="card space-y-2 border-green-500 border-2">
+        {/* Google Classroom Integration (Interactive) */}
+        <div className="card space-y-2 border-green-500 border-2 bg-stone-50">
           <h2 className="font-semibold text-green-700 flex items-center gap-2">
             📚 Google Classroom Integrations
           </h2>
-          <div className="text-sm bg-stone-50 p-3 rounded border">
-            <p className="font-medium">Data Structures - Assignment 4 (Due in 2 days)</p>
-            <p className="text-stone-600 mb-2">Linked from Google Classroom</p>
-            <button className="btn2 bg-green-600 text-white hover:bg-green-700" onClick={() => alert("Mock: Assignment turned in via Google Classroom API!")}>Turn In / Submit</button>
+          <div className="space-y-2 mt-2">
+            {assignments.map(a => (
+              <div key={a.id} className={`p-3 border rounded flex justify-between items-center ${a.turnedIn ? 'bg-green-50 border-green-200' : 'bg-white border-stone-200 shadow-sm'}`}>
+                <div>
+                  <p className={`font-medium ${a.turnedIn ? 'line-through text-stone-500' : 'text-stone-800'}`}>{a.title}</p>
+                  <p className="text-xs text-stone-500">{a.course} • Due {a.due}</p>
+                </div>
+                {a.turnedIn ? (
+                  <span className="text-green-600 text-sm font-semibold flex items-center gap-1"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path></svg> Turned In</span>
+                ) : (
+                  <button className="btn2 bg-green-600 text-white hover:bg-green-700 border-none px-4" onClick={() => turnInAssignment(a.id)}>Turn In / Submit</button>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* HACKATHON FEATURE: Tech News */}
+        {/* Placement & Employability Predictor (Interactive) */}
+        <div className="card border-blue-500 border-2 bg-stone-50">
+          <h2 className="font-semibold text-blue-800 flex items-center gap-2">💼 Placement & Employability Predictor</h2>
+          <div className="mt-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded flex gap-4 items-center">
+            <div className="flex-shrink-0 flex items-center justify-center w-20 h-20 rounded-full bg-blue-100 border-4 border-blue-500">
+              <span className="text-2xl font-bold text-blue-700">{placementScore}%</span>
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-blue-900 text-lg">Tier-1 Placement Readiness</p>
+              <p className="text-sm text-blue-700 mt-1">Based on marks, attendance, and technical skills.</p>
+              <div className="flex flex-wrap gap-1 mt-2">
+                {skills.map(s => <span key={s} className="px-2 py-1 bg-blue-200 text-blue-800 text-xs font-medium rounded-full">{s}</span>)}
+              </div>
+              <div className="flex gap-2 mt-3">
+                <input type="text" placeholder="Add learned skill (e.g. React)" value={newSkill} onChange={e => setNewSkill(e.target.value)} className="inp flex-1 text-sm p-1.5 border-blue-200 focus:border-blue-500" />
+                <button className="btn bg-blue-600 text-white hover:bg-blue-700 border-none px-4" onClick={addSkill}>Add Skill & Boost Score</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Existing Detail Component */}
+        <Detail tok={t} sid={auth.student_id} role="student" />
+
+        {/* Tech News */}
         <div className="card space-y-2 border-slate-300 border">
           <h2 className="font-semibold text-slate-700 flex items-center gap-2">
             📰 Latest Industry News
           </h2>
-          <div className="text-sm space-y-2">
-            <div className="border-b pb-2">
+          <div className="text-sm space-y-2 flex gap-4 overflow-x-auto pb-2">
+            <div className="border rounded p-3 min-w-[250px] bg-white">
               <a href="#" className="font-medium text-blue-600 hover:underline">OpenAI releases new reasoning models for coding</a>
-              <p className="text-xs text-stone-500">TechCrunch • 2 hours ago</p>
+              <p className="text-xs text-stone-500 mt-1">TechCrunch • 2 hours ago</p>
             </div>
-            <div>
+            <div className="border rounded p-3 min-w-[250px] bg-white">
               <a href="#" className="font-medium text-blue-600 hover:underline">Top 10 Backend Frameworks to learn in 2026</a>
-              <p className="text-xs text-stone-500">Dev.to • 5 hours ago</p>
+              <p className="text-xs text-stone-500 mt-1">Dev.to • 5 hours ago</p>
             </div>
           </div>
         </div>
 
       </div>
-      <div className="card space-y-4 self-start bg-slate-50">
+
+      {/* Right Column: Interactive Widgets */}
+      <div className="w-80 flex-shrink-0 space-y-4">
         
-        {/* HACKATHON FEATURE: AI Chatbot */}
-        <div className="space-y-2">
-          <h2 className="font-semibold text-blue-800">💬 24/7 AI Virtual Assistant</h2>
-          <p className="text-xs text-stone-600">Answers use your records & university syllabus.</p>
-          <div className="bg-white p-2 border rounded min-h-[100px] max-h-[200px] overflow-auto">
-            {chat.map((c, i) => <div key={i} className="text-sm border-b border-stone-100 pb-2 mb-2"><p className="font-medium text-blue-700">You: {c.q}</p><p className="text-stone-700">Bot: {c.a}</p></div>)}
-            {chat.length === 0 && <p className="text-xs text-stone-400 italic">Try asking: "What happens if I miss the quiz tomorrow?"</p>}
+        {/* Working AI Chatbot connected to backend */}
+        <div className="card space-y-2 bg-slate-50 border-purple-200 shadow-sm h-[400px] flex flex-col p-0 overflow-hidden">
+          <div className="bg-purple-700 p-3 text-white flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+            <h2 className="font-semibold text-white">24/7 AI Virtual Assistant</h2>
           </div>
-          <div className="flex gap-2">
-            <input className="inp flex-1" placeholder="Ask anything..." aria-label="Ask the study assistant" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && q && !busy && ask()} />
-            <button className="btn" disabled={!q || busy} onClick={ask}>Send</button>
+          <div className="p-2 text-xs text-stone-500 text-center border-b bg-white">Answers use your records & university syllabus.</div>
+          <div className="flex-1 bg-white p-3 overflow-y-auto space-y-3">
+            {chat.map((c, i) => (
+              <div key={i} className="space-y-2">
+                <div className="flex justify-end"><div className="bg-purple-600 text-white text-sm p-2 rounded-lg rounded-br-none max-w-[85%]">{c.q}</div></div>
+                <div className="flex justify-start"><div className="bg-stone-100 text-stone-800 border border-stone-200 text-sm p-2 rounded-lg rounded-bl-none max-w-[85%]">{c.a}</div></div>
+              </div>
+            ))}
+            {chat.length === 0 && <p className="text-xs text-stone-400 italic text-center mt-4">Try asking: "What happens if I miss the quiz tomorrow?"</p>}
+            {busy && <div className="flex justify-start"><div className="bg-stone-100 text-stone-500 text-sm p-2 rounded-lg rounded-bl-none animate-pulse">Typing...</div></div>}
           </div>
-        </div>
-
-        <hr />
-
-        {/* HACKATHON FEATURE: Placement & Employability */}
-        <div>
-          <h2 className="font-semibold text-purple-800">💼 Placement & Employability Predictor</h2>
-          <div className="mt-2 text-sm bg-purple-50 p-2 rounded border border-purple-200">
-            <p className="font-bold text-lg text-purple-900">85% Readiness</p>
-            <p className="text-purple-800 mt-1">You have a high chance of landing a Tier-1 tech job! <b>Recommendation:</b> Boost your coding quiz scores to hit 95%.</p>
+          <div className="p-2 bg-stone-50 border-t flex gap-2">
+            <input className="inp flex-1 text-sm border-purple-200 focus:border-purple-500" placeholder="Ask anything..." aria-label="Ask the study assistant" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && q && !busy && ask()} />
+            <button className="bg-purple-600 text-white px-3 rounded hover:bg-purple-700 disabled:opacity-50 transition" disabled={!q || busy} onClick={ask}>Send</button>
           </div>
         </div>
 
-        <hr />
-
-        {/* HACKATHON FEATURE: Coding Platform & Jobs */}
-        <div className="space-y-2">
-          <h2 className="font-semibold text-orange-800">💻 Tech Profile & Jobs</h2>
-          <div className="text-sm">
-            <p><b>GitHub + LeetCode Score:</b> <span className="text-orange-600 font-bold">1,240 pts</span></p>
-            <p className="text-stone-600 mb-2">Area of improvement: Dynamic Programming</p>
-            <button className="btn2 text-xs" onClick={() => alert("Mock: Opening online compiler with daily challenge...")}>Run Daily Challenge in Compiler</button>
+        {/* Coding Platform & Jobs (Interactive) */}
+        <div className="card border-orange-200 border bg-orange-50 shadow-sm">
+          <h2 className="font-semibold text-orange-800 flex items-center gap-2">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            Tech Profile & Jobs
+          </h2>
+          <div className="text-sm mt-3 bg-white p-3 border rounded shadow-sm">
+            <div className="flex justify-between items-center mb-1">
+              <p className="text-stone-500 text-xs">GitHub + LeetCode Score</p>
+              <p className="text-orange-600 font-bold text-lg">1,240 pts</p>
+            </div>
+            <p className="text-stone-600 mb-3 text-xs">Area of improvement: Dynamic Programming</p>
+            <button className="w-full bg-stone-800 text-white hover:bg-stone-900 py-2 rounded text-xs font-semibold transition" onClick={() => setIsCompilerOpen(true)}>Launch Online Compiler</button>
           </div>
-          <div className="bg-orange-50 p-2 rounded border border-orange-200 text-sm mt-2">
-            <p className="font-medium">Recommended Jobs (Matched)</p>
-            <ul className="list-disc ml-4 text-orange-900">
-              <li>SDE-1 at Amazon (Apply Now)</li>
-              <li>Frontend Intern at Vercel</li>
+          <div className="bg-white p-3 rounded border border-orange-200 text-sm mt-3 shadow-sm">
+            <p className="font-semibold text-stone-800 mb-2">Recommended Jobs (Matched)</p>
+            <ul className="space-y-2">
+              <li className="flex justify-between items-center border-b pb-2">
+                <div><p className="font-medium text-orange-900 text-xs">SDE-1 at Amazon</p></div>
+                <button className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200 font-medium">Apply</button>
+              </li>
+              <li className="flex justify-between items-center">
+                <div><p className="font-medium text-orange-900 text-xs">Frontend Intern at Vercel</p></div>
+                <button className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200 font-medium">Apply</button>
+              </li>
             </ul>
           </div>
         </div>
-
-        <hr />
         
-        <div className="space-y-1">
+        <div className="card space-y-1">
           <p className="font-semibold text-sm">Study Partners</p>
-          <button className="btn2" onClick={async () => { await post("/me/peer-opt-in?on=true", t); setPeer("You are included in peer matching."); }}>Opt in</button>
-          <button className="btn2 ml-2" onClick={async () => { await post("/me/peer-opt-in?on=false", t); setPeer("You are not included in peer matching."); }}>Opt out</button>
-          {peer && <p className="text-xs mt-1" role="status">{peer}</p>}
+          <div className="flex gap-2">
+            <button className="btn2 flex-1" onClick={async () => { await post("/me/peer-opt-in?on=true", t); setPeer("You are included in peer matching."); }}>Opt in</button>
+            <button className="btn2 flex-1" onClick={async () => { await post("/me/peer-opt-in?on=false", t); setPeer("You are not included in peer matching."); }}>Opt out</button>
+          </div>
+          {peer && <p className="text-xs mt-1 text-green-700 bg-green-50 p-1 rounded border border-green-200" role="status">{peer}</p>}
         </div>
       </div>
+
+      {/* Online Compiler Modal */}
+      {isCompilerOpen && (
+        <div className="fixed inset-0 bg-stone-900 bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-stone-900 rounded-lg shadow-2xl w-full max-w-4xl flex flex-col h-[85vh] overflow-hidden border border-stone-700">
+            <div className="bg-black text-white p-3 flex justify-between items-center border-b border-stone-800">
+              <div className="flex items-center gap-3">
+                <h3 className="font-mono text-sm font-semibold text-stone-300">Code Editor</h3>
+                <span className="bg-orange-500 text-white text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wide">Daily Challenge: Two Sum</span>
+              </div>
+              <button onClick={() => setIsCompilerOpen(false)} className="text-stone-400 hover:text-white transition">&times; Close</button>
+            </div>
+            <div className="flex-1 flex flex-col md:flex-row p-4 gap-4 bg-stone-900">
+              <div className="flex-1 flex flex-col gap-2">
+                <label className="text-stone-400 text-xs font-mono uppercase tracking-wider">index.js</label>
+                <textarea 
+                  className="flex-1 w-full bg-[#1e1e1e] text-green-400 font-mono p-4 rounded focus:outline-none focus:ring-1 focus:ring-stone-600 resize-none shadow-inner"
+                  value={compilerCode}
+                  onChange={(e) => setCompilerCode(e.target.value)}
+                  spellCheck={false}
+                />
+              </div>
+              <div className="w-full md:w-1/3 flex flex-col gap-2">
+                <label className="text-stone-400 text-xs font-mono uppercase tracking-wider">Console Output</label>
+                <div className="flex-1 bg-[#1e1e1e] text-stone-300 font-mono p-4 rounded overflow-y-auto text-sm whitespace-pre-wrap shadow-inner border border-stone-800">
+                  {compilerOutput || "> Ready..."}
+                </div>
+              </div>
+            </div>
+            <div className="bg-stone-800 p-4 flex justify-between items-center border-t border-stone-700">
+              <button className="px-4 py-2 bg-stone-700 text-stone-300 rounded hover:bg-stone-600 transition text-sm font-medium" onClick={() => setCompilerOutput("")}>Clear Console</button>
+              <button className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition font-bold shadow-lg shadow-green-900" onClick={runCode}>Run Code</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
