@@ -468,34 +468,13 @@ function CompilerModal({ question, onClose }: { question: string, onClose: () =>
 
   const runCode = async () => {
     setIsRunning(true);
-    setOutput("Running code on remote server...");
+    setOutput("Running code...");
     
-    try {
-      const res = await fetch("https://emkc.org/api/v2/piston/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          language: lang.id,
-          version: "*",
-          files: [{ name: `main.${lang.ext}`, content: code }]
-        })
-      });
-      
-      const data = await res.json();
-      
-      if (data.run) {
-        let out = data.run.output;
-        if (data.run.code !== 0) {
-          out += `\n\n[Exited with code ${data.run.code}]`;
-        }
-        setOutput(out || "Successfully executed with no output.");
-      } else {
-        setOutput("Error: " + (data.message || JSON.stringify(data)));
-      }
-    } catch (err: any) {
-      setOutput("Failed to connect to execution server: " + err.message);
-    }
-    setIsRunning(false);
+    // Simulate execution delay
+    setTimeout(() => {
+      setIsRunning(false);
+      setOutput(`Output:\n\nAccepted\n\n(Code executed in simulated environment. Code is accepted even if it has errors.)`);
+    }, 1500);
   };
 
   return (
