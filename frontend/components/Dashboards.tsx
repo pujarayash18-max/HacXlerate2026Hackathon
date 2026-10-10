@@ -185,17 +185,17 @@ export function StudentHome({ auth }: { auth: A }) {
   const [githubUser, setGithubUser] = useState("");
   const [leetcodeUser, setLeetcodeUser] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [techProfile, setTechProfile] = useState<{score: number, improvement: string, questions: string[]} | null>(null);
+  const [techProfile, setTechProfile] = useState<{score: number, improvement: string, questions: string[], completedQuestions: string[]} | null>(null);
 
   const analyzeProfile = async () => {
     if (!githubUser && !leetcodeUser) return;
     setIsAnalyzing(true);
     try {
       const r = await post("/analyze-profiles", t, { github: githubUser, leetcode: leetcodeUser });
-      setTechProfile(r);
+      setTechProfile({ ...r, completedQuestions: [] });
     } catch (e: A) {
       console.error(e);
-      setTechProfile({score: 1450, improvement: "Graph Algorithms", questions: ["Clone Graph", "Course Schedule"]});
+      setTechProfile({score: 1450, improvement: "Graph Algorithms", questions: ["Clone Graph", "Course Schedule", "Merge Intervals"], completedQuestions: []});
     } finally {
       setIsAnalyzing(false);
     }
@@ -204,10 +204,22 @@ export function StudentHome({ auth }: { auth: A }) {
   const ask = async () => {
     setBusy(true);
     try {
+      const pendingText = assignments.filter(a => a.isMissing).map(a => `${a.title} for ${a.course} (Missing, due ${a.due})`).join("; ");
+      const upcomingText = assignments.filter(a => !a.isMissing).map(a => `${a.title} for ${a.course} (Upcoming, due ${a.due})`).join("; ");
+      
+      const context = `You are a helpful virtual assistant for a student named ${session?.user?.name || "Student"}. Here is their current data context:
+Pending/Missing Assignments: ${pendingText || "None"}
+Upcoming Assignments: ${upcomingText || "None"}
+Tech Profile: ${techProfile ? `Score: ${techProfile.score}, Needs improvement in: ${techProfile.improvement}` : "Not analyzed yet"}
+
+Answer the following question from the student concisely and use the provided context to give a personalized answer. If the answer is not in the context, use your general knowledge, but prioritize the context if it asks about their work, assignments, or profile.
+
+Student's question: ${q}`;
+
       const res = await fetch("/api/ollama", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: q })
+        body: JSON.stringify({ prompt: context })
       });
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
@@ -339,13 +351,21 @@ export function StudentHome({ auth }: { auth: A }) {
               </div>
               <p className="text-stone-600 mb-2 text-xs">Area of improvement: <span className="font-semibold text-stone-800">{techProfile.improvement}</span></p>
               <div className="mb-3">
-                <p className="text-xs text-stone-500 mb-1">Suggested Questions:</p>
+                <div className="flex justify-between items-center mb-1">
+                  <p className="text-xs text-stone-500">Suggested Questions:</p>
+                  <p className="text-xs font-semibold text-teal-700">{techProfile.completedQuestions.length}/{techProfile.questions.length} completed</p>
+                </div>
                 <ul className="list-disc ml-4 space-y-1">
-                  {techProfile.questions.map(q => (
-                    <li key={q} className="text-stone-800 text-xs">
-                      <button onClick={() => setActiveQuestion(q)} className="text-teal-700 hover:underline text-left inline-block w-full">{q}</button>
-                    </li>
-                  ))}
+                  {techProfile.questions.map(q => {
+                    const isCompleted = techProfile.completedQuestions.includes(q);
+                    return (
+                      <li key={q} className={`text-xs ${isCompleted ? 'text-stone-400 line-through' : 'text-stone-800'}`}>
+                        <button onClick={() => setActiveQuestion(q)} className={`${isCompleted ? 'hover:text-stone-600' : 'text-teal-700 hover:underline'} text-left inline-block w-full`}>
+                          {q} {isCompleted && "✓"}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
               <button className="btn2 w-full mt-2" onClick={() => setTechProfile(null)}>Reset Profile</button>
@@ -353,7 +373,15 @@ export function StudentHome({ auth }: { auth: A }) {
           )}
         </div>
 
-        {activeQuestion && <CompilerModal question={activeQuestion} onClose={() => setActiveQuestion(null)} />}
+        {activeQuestion && <CompilerModal 
+          question={activeQuestion} 
+          onClose={() => setActiveQuestion(null)} 
+          onComplete={() => {
+            if (techProfile && !techProfile.completedQuestions.includes(activeQuestion)) {
+              setTechProfile({ ...techProfile, completedQuestions: [...techProfile.completedQuestions, activeQuestion] });
+            }
+          }}
+        />}
 
         {/* AI Chatbot */}
         <div className="card space-y-2 h-[400px] flex flex-col p-0 overflow-hidden">
@@ -470,7 +498,7 @@ const LANGUAGES = [
   { id: "rust", name: "Rust", ext: "rs", defaultCode: "fn main() {\n    // Write your code here\n    println!(\"Hello world\");\n}\n" }
 ];
 
-function CompilerModal({ question, onClose }: { question: string, onClose: () => void }) {
+function CompilerModal({ question, onClose, onComplete }: { question: string, onClose: () => void, onComplete: () => void }) {
   const [lang, setLang] = useState(LANGUAGES[0]);
   const [code, setCode] = useState(lang.defaultCode);
   const [output, setOutput] = useState("");
@@ -498,8 +526,10 @@ function CompilerModal({ question, onClose }: { question: string, onClose: () =>
       if (!res.ok) throw new Error("Failed to evaluate code");
       const data = await res.json();
       setOutput(data.response);
+      onComplete();
     } catch (e: any) {
       setOutput(`Error: ${e.message}\n\n(Fallback: Code executed in simulated environment. Code is accepted even if it has errors.)`);
+      onComplete();
     } finally {
       setIsRunning(false);
     }
