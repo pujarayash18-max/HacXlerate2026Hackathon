@@ -261,18 +261,104 @@ class ProfileAnalysisRequest(BaseModel):
 
 @app.post("/analyze-profiles")
 def analyze_profiles(req: ProfileAnalysisRequest, db: Session = Depends(get_db), u: User = Depends(current_any)):
-    import random
-    score = random.randint(50, 95)
-    
+    import requests
+    import datetime
+
+    def calc_gh(username: str):
+        if not username: return 0.0
+        try:
+            h = {}
+            ur = requests.get(f"https://api.github.com/users/{username}", headers=h, timeout=5)
+            if ur.status_code != 200: return 0.0
+            ud = ur.json()
+            rr = requests.get(f"https://api.github.com/users/{username}/repos?per_page=100", headers=h, timeout=5)
+            rd = rr.json() if rr.status_code == 200 else []
+            
+            p_score = sum([bool(ud.get("bio")), ud.get("public_repos", 0) >= 4, bool(ud.get("blog") or ud.get("twitter_username")),
+                           bool(ud.get("avatar_url")), any(r.get("name", "").lower() == username.lower() for r in rd)])
+            p_score = min(p_score, 5)
+
+            stars = sum(r.get("stargazers_count", 0) for r in rd)
+            comm_score = min((stars + ud.get("followers", 0)) / 25, 1) * 5
+
+            forks = sum(r.get("forks_count", 0) for r in rd)
+            prs = 0
+            sr = requests.get(f"https://api.github.com/search/issues?q=author:{username}+type:pr", headers=h, timeout=5)
+            if sr.status_code == 200: prs = sr.json().get("total_count", 0)
+            collab_score = min((prs + forks) / 10, 1) * 5
+
+            langs = set(r.get("language") for r in rd if r.get("language"))
+            orig = [r for r in rd if not r.get("fork")]
+            deep = sum(1 for r in orig if r.get("size", 0) > 50)
+            depth_score = min(deep / 4, 1) * 5 + min(len(langs) / 4, 1) * 5
+
+            active_weeks = 0
+            er = requests.get(f"https://api.github.com/users/{username}/events/public", headers=h, timeout=5)
+            if er.status_code == 200:
+                weeks = {datetime.datetime.fromisoformat(e["created_at"].replace("Z", "+00:00")).isocalendar()[1] for e in er.json() if "created_at" in e}
+                active_weeks = min(len(weeks) * 4, 52)
+            cons_score = min(active_weeks / 30, 1) * 10
+
+            qual = sum(1 for r in orig if r.get("description") and r.get("homepage"))
+            qual_score = min(qual / 5, 1) * 15
+
+            return p_score + comm_score + collab_score + depth_score + cons_score + qual_score
+        except Exception as e:
+            print(f"GitHub err: {e}")
+            return 0.0
+
+    def calc_lc(username: str):
+        if not username: return 0.0
+        q = '''query getUserProfile($username: String!) {
+          matchedUser(username: $username) {
+            profile { websites }
+            badges { id }
+            submitStats { acSubmissionNum { difficulty count } }
+            userCalendar { totalActiveDays }
+          }
+          userContestRanking(username: $username) { rating }
+        }'''
+        try:
+            r = requests.post('https://leetcode.com/graphql', json={'query': q, 'variables': {'username': username}}, timeout=5)
+            if r.status_code != 200: return 0.0
+            d = r.json().get("data", {})
+            m = d.get("matchedUser")
+            if not m: return 0.0
+
+            webs = m.get("profile", {}).get("websites", [])
+            prof_score = 5 if any("github" in w.lower() or "linkedin" in w.lower() for w in webs) else 0
+
+            badge_score = min(len(m.get("badges", [])) / 3, 1) * 5
+            cons_score = min(m.get("userCalendar", {}).get("totalActiveDays", 0) / 150, 1) * 10
+
+            stats = m.get("submitStats", {}).get("acSubmissionNum", [])
+            med = sum(s.get("count", 0) for s in stats if s.get("difficulty") == "Medium")
+            hard = sum(s.get("count", 0) for s in stats if s.get("difficulty") == "Hard")
+            tot = sum(s.get("count", 0) for s in stats if s.get("difficulty") == "All")
+            
+            qual_score = min((med * 2 + hard * 4) / 100, 1) * 15
+            vol_score = min(tot / 150, 1) * 10
+
+            rk = d.get("userContestRanking")
+            rank_score = min((rk.get("rating", 0) if rk else 0) / 1600, 1) * 5
+
+            return prof_score + badge_score + cons_score + qual_score + vol_score + rank_score
+        except Exception as e:
+            print(f"LeetCode err: {e}")
+            return 0.0
+
+    gh_score = calc_gh(req.github)
+    lc_score = calc_lc(req.leetcode)
+    score = int(gh_score + lc_score)
+
     improvements = []
     if not req.github and not req.leetcode:
         improvements.append("Please link your GitHub and LeetCode profiles to get a comprehensive analysis.")
-        score = random.randint(30, 50)
     else:
         if req.github:
-            improvements.append(f"Great job having a GitHub profile ({req.github})! Try to contribute more consistently to open source projects.")
+            improvements.append(f"GitHub: Scored {int(gh_score)}/50. Enhance your project quality with descriptions/demos, and keep pushing commits.")
         if req.leetcode:
-            improvements.append(f"LeetCode profile ({req.leetcode}) found. Focus on medium/hard dynamic programming and graph questions to boost your rating.")
+            improvements.append(f"LeetCode: Scored {int(lc_score)}/50. Focus on solving more Medium/Hard problems and participating in contests to boost your rating.")
 
     improvement_text = " ".join(improvements) if improvements else "Keep practicing to improve your skills."
     
@@ -283,6 +369,7 @@ def analyze_profiles(req: ProfileAnalysisRequest, db: Session = Depends(get_db),
         "Number of Islands (Graph / BFS / DFS)",
         "Longest Common Subsequence (Dynamic Programming)"
     ]
+    import random
     suggested_questions = random.sample(questions, 3)
     
     return {
