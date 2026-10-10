@@ -34,18 +34,92 @@ export function StudentHome({ auth }: { auth: A }) {
   const ask = async () => { setBusy(true); try { const r = await post("/copilot", t, { question: q }); setChat([...chat, { q, a: r.answer }]); setQ(""); } catch (e: A) { setChat([...chat, { q, a: "Error: " + e.message }]); } finally { setBusy(false); } };
   return (
     <div className="grid md:grid-cols-3 gap-4">
-      <div className="md:col-span-2"><Detail tok={t} sid={auth.student_id} role="student" /></div>
-      <div className="card space-y-2 self-start">
-        <h2 className="font-semibold">Study assistant</h2>
-        <p className="muted">Answers use only your own records.</p>
-        {chat.map((c, i) => <div key={i} className="text-sm border-t border-stone-200 pt-1"><p className="font-medium">{c.q}</p><p>{c.a}</p></div>)}
-        <input className="inp" placeholder="What should I focus on this week?" aria-label="Ask the study assistant" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && q && !busy && ask()} />
-        <button className="btn" disabled={!q || busy} onClick={ask}>Ask</button>
-        <div className="border-t border-stone-200 pt-2 space-y-1">
-          <p className="muted">Study partner suggestions only include students who opted in.</p>
-          <button className="btn2" onClick={async () => { await post("/me/peer-opt-in?on=true", t); setPeer("You are included in peer matching."); }}>Opt in to peer matching</button>
+      <div className="md:col-span-2 space-y-4">
+        <Detail tok={t} sid={auth.student_id} role="student" />
+        
+        {/* HACKATHON FEATURE: Google Classroom & Assignments */}
+        <div className="card space-y-2 border-green-500 border-2">
+          <h2 className="font-semibold text-green-700 flex items-center gap-2">
+            📚 Google Classroom Integrations
+          </h2>
+          <div className="text-sm bg-stone-50 p-3 rounded border">
+            <p className="font-medium">Data Structures - Assignment 4 (Due in 2 days)</p>
+            <p className="text-stone-600 mb-2">Linked from Google Classroom</p>
+            <button className="btn2 bg-green-600 text-white hover:bg-green-700" onClick={() => alert("Mock: Assignment turned in via Google Classroom API!")}>Turn In / Submit</button>
+          </div>
+        </div>
+
+        {/* HACKATHON FEATURE: Tech News */}
+        <div className="card space-y-2 border-slate-300 border">
+          <h2 className="font-semibold text-slate-700 flex items-center gap-2">
+            📰 Latest Industry News
+          </h2>
+          <div className="text-sm space-y-2">
+            <div className="border-b pb-2">
+              <a href="#" className="font-medium text-blue-600 hover:underline">OpenAI releases new reasoning models for coding</a>
+              <p className="text-xs text-stone-500">TechCrunch • 2 hours ago</p>
+            </div>
+            <div>
+              <a href="#" className="font-medium text-blue-600 hover:underline">Top 10 Backend Frameworks to learn in 2026</a>
+              <p className="text-xs text-stone-500">Dev.to • 5 hours ago</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div className="card space-y-4 self-start bg-slate-50">
+        
+        {/* HACKATHON FEATURE: AI Chatbot */}
+        <div className="space-y-2">
+          <h2 className="font-semibold text-blue-800">💬 24/7 AI Virtual Assistant</h2>
+          <p className="text-xs text-stone-600">Answers use your records & university syllabus.</p>
+          <div className="bg-white p-2 border rounded min-h-[100px] max-h-[200px] overflow-auto">
+            {chat.map((c, i) => <div key={i} className="text-sm border-b border-stone-100 pb-2 mb-2"><p className="font-medium text-blue-700">You: {c.q}</p><p className="text-stone-700">Bot: {c.a}</p></div>)}
+            {chat.length === 0 && <p className="text-xs text-stone-400 italic">Try asking: "What happens if I miss the quiz tomorrow?"</p>}
+          </div>
+          <div className="flex gap-2">
+            <input className="inp flex-1" placeholder="Ask anything..." aria-label="Ask the study assistant" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && q && !busy && ask()} />
+            <button className="btn" disabled={!q || busy} onClick={ask}>Send</button>
+          </div>
+        </div>
+
+        <hr />
+
+        {/* HACKATHON FEATURE: Placement & Employability */}
+        <div>
+          <h2 className="font-semibold text-purple-800">💼 Placement & Employability Predictor</h2>
+          <div className="mt-2 text-sm bg-purple-50 p-2 rounded border border-purple-200">
+            <p className="font-bold text-lg text-purple-900">85% Readiness</p>
+            <p className="text-purple-800 mt-1">You have a high chance of landing a Tier-1 tech job! <b>Recommendation:</b> Boost your coding quiz scores to hit 95%.</p>
+          </div>
+        </div>
+
+        <hr />
+
+        {/* HACKATHON FEATURE: Coding Platform & Jobs */}
+        <div className="space-y-2">
+          <h2 className="font-semibold text-orange-800">💻 Tech Profile & Jobs</h2>
+          <div className="text-sm">
+            <p><b>GitHub + LeetCode Score:</b> <span className="text-orange-600 font-bold">1,240 pts</span></p>
+            <p className="text-stone-600 mb-2">Area of improvement: Dynamic Programming</p>
+            <button className="btn2 text-xs" onClick={() => alert("Mock: Opening online compiler with daily challenge...")}>Run Daily Challenge in Compiler</button>
+          </div>
+          <div className="bg-orange-50 p-2 rounded border border-orange-200 text-sm mt-2">
+            <p className="font-medium">Recommended Jobs (Matched)</p>
+            <ul className="list-disc ml-4 text-orange-900">
+              <li>SDE-1 at Amazon (Apply Now)</li>
+              <li>Frontend Intern at Vercel</li>
+            </ul>
+          </div>
+        </div>
+
+        <hr />
+        
+        <div className="space-y-1">
+          <p className="font-semibold text-sm">Study Partners</p>
+          <button className="btn2" onClick={async () => { await post("/me/peer-opt-in?on=true", t); setPeer("You are included in peer matching."); }}>Opt in</button>
           <button className="btn2 ml-2" onClick={async () => { await post("/me/peer-opt-in?on=false", t); setPeer("You are not included in peer matching."); }}>Opt out</button>
-          {peer && <p className="text-sm" role="status">{peer}</p>}
+          {peer && <p className="text-xs mt-1" role="status">{peer}</p>}
         </div>
       </div>
     </div>
