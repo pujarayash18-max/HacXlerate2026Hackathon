@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 import { A, call, post, pct } from "../lib/api";
 
@@ -30,6 +31,7 @@ export function Staff({ auth }: { auth: A }) {
 
 export function StudentHome({ auth }: { auth: A }) {
   const t = auth.access_token;
+  const { data: session } = useSession();
   const [q, setQ] = useState(""); const [chat, setChat] = useState<{ q: string; a: string }[]>([]); const [busy, setBusy] = useState(false); const [peer, setPeer] = useState("");
   
   const [assignments, setAssignments] = useState([
@@ -75,22 +77,35 @@ export function StudentHome({ auth }: { auth: A }) {
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#185abc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
               Google Classroom Assignments
             </h2>
-            <span className="text-xs font-medium bg-[#185abc]/10 text-[#185abc] px-2 py-1 rounded">Connected</span>
+            {session ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium bg-[#185abc]/10 text-[#185abc] px-2 py-1 rounded">Connected as {session.user?.name}</span>
+                <button onClick={() => signOut()} className="text-xs text-stone-500 hover:underline">Disconnect</button>
+              </div>
+            ) : (
+              <button onClick={() => signIn("google")} className="text-xs font-medium bg-stone-100 hover:bg-stone-200 text-stone-800 px-3 py-1 border border-stone-300 rounded transition-colors">Connect Account</button>
+            )}
           </div>
           <div className="space-y-2 mt-2">
-            {assignments.map(a => (
-              <div key={a.id} className={`p-3 border rounded flex justify-between items-center ${a.turnedIn ? 'bg-stone-50 border-stone-200' : 'bg-white border-stone-300'}`}>
-                <div>
-                  <p className={`font-medium ${a.turnedIn ? 'text-stone-500' : 'text-stone-800'}`}>{a.title}</p>
-                  <p className="text-xs text-stone-500">{a.course} - Due {a.due}</p>
+            {session ? (
+              assignments.map(a => (
+                <div key={a.id} className={`p-3 border rounded flex justify-between items-center ${a.turnedIn ? 'bg-stone-50 border-stone-200' : 'bg-white border-stone-300'}`}>
+                  <div>
+                    <p className={`font-medium ${a.turnedIn ? 'text-stone-500' : 'text-stone-800'}`}>{a.title}</p>
+                    <p className="text-xs text-stone-500">{a.course} - Due {a.due}</p>
+                  </div>
+                  {a.turnedIn ? (
+                    <span className="text-stone-600 text-sm font-semibold">Submitted</span>
+                  ) : (
+                    <button className="btn2" onClick={() => turnInAssignment(a.id)}>Turn In</button>
+                  )}
                 </div>
-                {a.turnedIn ? (
-                  <span className="text-stone-600 text-sm font-semibold">Submitted</span>
-                ) : (
-                  <button className="btn2" onClick={() => turnInAssignment(a.id)}>Turn In</button>
-                )}
+              ))
+            ) : (
+              <div className="py-6 text-center text-stone-500 text-sm border-2 border-dashed border-stone-200 rounded">
+                Please connect your Google account to sync assignments.
               </div>
-            ))}
+            )}
           </div>
         </div>
 
