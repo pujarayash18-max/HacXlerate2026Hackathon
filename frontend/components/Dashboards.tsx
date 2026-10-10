@@ -113,41 +113,65 @@ export function StudentHome({ auth }: { auth: A }) {
     if (!session?.accessToken) return;
     setUploadingId(assignmentId);
     try {
-      // 1. Upload file to Google Drive
-      const metadata = { name: file.name };
-      const form = new FormData();
-      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-      form.append("file", file);
-
-      const driveRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+      // 1. Upload file to Google Drive (Simple Upload)
+      const driveRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=media", {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.accessToken}` },
-        body: form
+        headers: { 
+          Authorization: `Bearer ${session.accessToken}`,
+          "Content-Type": file.type || "application/octet-stream"
+        },
+        body: file
       });
+      
+      if (!driveRes.ok) {
+        const errorText = await driveRes.text();
+        throw new Error(`Drive upload failed: ${errorText}`);
+      }
+      
       const driveData = await driveRes.json();
       const driveFileId = driveData.id;
 
-      if (!driveFileId) throw new Error("Failed to upload to Drive");
+      if (!driveFileId) throw new Error("Failed to get Drive file ID");
+
+      // 1.5 Update the filename in Drive
+      await fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}`, {
+        method: "PATCH",
+        headers: { 
+          Authorization: `Bearer ${session.accessToken}`, 
+          "Content-Type": "application/json" 
+        },
+        body: JSON.stringify({ name: file.name })
+      });
 
       // 2. Attach file to submission
-      await fetch(`https://classroom.googleapis.com/v1/courses/${courseId}/courseWork/${assignmentId}/studentSubmissions/${submissionId}:modifyAttachments`, {
+      const attachRes = await fetch(`https://classroom.googleapis.com/v1/courses/${courseId}/courseWork/${assignmentId}/studentSubmissions/${submissionId}:modifyAttachments`, {
         method: "POST",
         headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ addAttachments: [{ driveFile: { id: driveFileId } }] })
       });
+      
+      if (!attachRes.ok) {
+        const errorText = await attachRes.text();
+        throw new Error(`Attach failed: ${errorText}`);
+      }
 
       // 3. Turn in submission
-      await fetch(`https://classroom.googleapis.com/v1/courses/${courseId}/courseWork/${assignmentId}/studentSubmissions/${submissionId}:turnIn`, {
+      const turnInRes = await fetch(`https://classroom.googleapis.com/v1/courses/${courseId}/courseWork/${assignmentId}/studentSubmissions/${submissionId}:turnIn`, {
         method: "POST",
         headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
         body: "{}"
       });
+      
+      if (!turnInRes.ok) {
+        const errorText = await turnInRes.text();
+        throw new Error(`Turn in failed: ${errorText}`);
+      }
 
       // Remove from list
       setAssignments(assignments.filter(a => a.id !== assignmentId));
-    } catch (err) {
+    } catch (err: any) {
       console.error("Turn in error:", err);
-      alert("Failed to turn in assignment. Please check scopes and try again.");
+      alert("Error: " + err.message + "\n\nPlease ensure you have Signed Out and Signed In again to accept the new Google permissions.");
     }
     setUploadingId(null);
   };
