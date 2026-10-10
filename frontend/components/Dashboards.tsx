@@ -201,7 +201,24 @@ export function StudentHome({ auth }: { auth: A }) {
     }
   };
 
-  const ask = async () => { setBusy(true); try { const r = await post("/copilot", t, { question: q }); setChat([...chat, { q, a: r.answer }]); setQ(""); } catch (e: A) { setChat([...chat, { q, a: "Error: " + e.message }]); } finally { setBusy(false); } };
+  const ask = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/ollama", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: q })
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setChat([...chat, { q, a: data.response }]);
+      setQ("");
+    } catch (e: any) {
+      setChat([...chat, { q, a: "Error: " + e.message }]);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const [activeQuestion, setActiveQuestion] = useState<string | null>(null);
 
@@ -468,13 +485,24 @@ function CompilerModal({ question, onClose }: { question: string, onClose: () =>
 
   const runCode = async () => {
     setIsRunning(true);
-    setOutput("Running code...");
+    setOutput("Evaluating code and analyzing time complexity with AI...");
     
-    // Simulate execution delay
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/ollama", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `Evaluate this ${lang.name} code for the problem "${question}". First, state clearly if it is CORRECT or INCORRECT. Then, analyze its Big-O time and space complexity.\n\nCode:\n${code}`
+        })
+      });
+      if (!res.ok) throw new Error("Failed to evaluate code");
+      const data = await res.json();
+      setOutput(data.response);
+    } catch (e: any) {
+      setOutput(`Error: ${e.message}\n\n(Fallback: Code executed in simulated environment. Code is accepted even if it has errors.)`);
+    } finally {
       setIsRunning(false);
-      setOutput(`Output:\n\nAccepted\n\n(Code executed in simulated environment. Code is accepted even if it has errors.)`);
-    }, 1500);
+    }
   };
 
   return (
