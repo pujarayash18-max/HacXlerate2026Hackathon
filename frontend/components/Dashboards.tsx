@@ -31,13 +31,128 @@ export function Staff({ auth }: { auth: A }) {
 
 export function StudentHome({ auth }: { auth: A }) {
   const t = auth.access_token;
-  const { data: session } = useSession();
+  const { data: session } = useSession() as any;
   const [q, setQ] = useState(""); const [chat, setChat] = useState<{ q: string; a: string }[]>([]); const [busy, setBusy] = useState(false); const [peer, setPeer] = useState("");
   
-  const [assignments, setAssignments] = useState([
+  const [assignments, setAssignments] = useState<any[]>([
     { id: 1, title: 'Data Structures - Assignment 4', course: 'CS201', due: 'Tomorrow, 11:59 PM', turnedIn: false },
     { id: 2, title: 'Final Essay Draft', course: 'ENG101', due: 'Friday, 5:00 PM', turnedIn: false }
   ]);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchClassroomData = async () => {
+      if (session?.accessToken) {
+        setLoadingAssignments(true);
+        try {
+          const res = await fetch("https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE", {
+            headers: { Authorization: `Bearer ${session.accessToken}` }
+          });
+          const data = await res.json();
+          if (data.courses && data.courses.length > 0) {
+            let allAssignments: any[] = [];
+            for (const course of data.courses.slice(0, 3)) {
+              // Fetch student submissions for the course
+              const subRes = await fetch(`https://classroom.googleapis.com/v1/courses/${course.id}/courseWork/-/studentSubmissions`, {
+                headers: { Authorization: `Bearer ${session.accessToken}` }
+              });
+              const subData = await subRes.json();
+              
+              if (subData.studentSubmissions) {
+                // Fetch course work details to get titles and due dates
+                const workRes = await fetch(`https://classroom.googleapis.com/v1/courses/${course.id}/courseWork`, {
+                  headers: { Authorization: `Bearer ${session.accessToken}` }
+                });
+                const workData = await workRes.json();
+                const workMap = new Map();
+                if (workData.courseWork) {
+                  workData.courseWork.forEach((w: any) => workMap.set(w.id, w));
+                }
+
+                for (const sub of subData.studentSubmissions) {
+                  // Only show pending assignments
+                  if (sub.state === "CREATED" || sub.state === "NEW" || sub.state === "RECLAIMED_BY_STUDENT") {
+                    const work = workMap.get(sub.courseWorkId);
+                    if (work) {
+                      let isMissing = false;
+                      let dueStr = 'No due date';
+                      if (work.dueDate) {
+                        const due = new Date(work.dueDate.year, work.dueDate.month - 1, work.dueDate.day, work.dueTime?.hours || 23, work.dueTime?.minutes || 59);
+                        if (due < new Date()) isMissing = true;
+                        dueStr = `${work.dueDate.year}-${work.dueDate.month}-${work.dueDate.day}`;
+                      }
+                      
+                      allAssignments.push({
+                        id: sub.courseWorkId,
+                        submissionId: sub.id,
+                        courseId: course.id,
+                        title: work.title,
+                        course: course.name,
+                        due: dueStr,
+                        isMissing,
+                        turnedIn: false,
+                      });
+                    }
+                  }
+                }
+              }
+            }
+            setAssignments(allAssignments);
+          }
+        } catch (err) {
+          console.error("Error fetching classroom data", err);
+        }
+        setLoadingAssignments(false);
+      }
+    };
+    fetchClassroomData();
+  }, [session]);
+
+  const handleTurnIn = async (assignmentId: string, submissionId: string, courseId: string, file: File) => {
+    if (!session?.accessToken) return;
+    setUploadingId(assignmentId);
+    try {
+      // 1. Upload file to Google Drive
+      const metadata = { name: file.name };
+      const form = new FormData();
+      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      form.append("file", file);
+
+      const driveRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+        body: form
+      });
+      const driveData = await driveRes.json();
+      const driveFileId = driveData.id;
+
+      if (!driveFileId) throw new Error("Failed to upload to Drive");
+
+      // 2. Attach file to submission
+      await fetch(`https://classroom.googleapis.com/v1/courses/${courseId}/courseWork/${assignmentId}/studentSubmissions/${submissionId}:modifyAttachments`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ addAttachments: [{ driveFile: { id: driveFileId } }] })
+      });
+
+      // 3. Turn in submission
+      await fetch(`https://classroom.googleapis.com/v1/courses/${courseId}/courseWork/${assignmentId}/studentSubmissions/${submissionId}:turnIn`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
+        body: "{}"
+      });
+
+      // Remove from list
+      setAssignments(assignments.filter(a => a.id !== assignmentId));
+    } catch (err) {
+      console.error("Turn in error:", err);
+      alert("Failed to turn in assignment. Please check scopes and try again.");
+    }
+    setUploadingId(null);
+  };
+
+
 
   const [githubUser, setGithubUser] = useState("");
   const [leetcodeUser, setLeetcodeUser] = useState("");
@@ -63,7 +178,7 @@ export function StudentHome({ auth }: { auth: A }) {
   const [activeQuestion, setActiveQuestion] = useState<string | null>(null);
 
   const turnInAssignment = (id: number) => {
-    setAssignments(assignments.map(a => a.id === id ? { ...a, turnedIn: true } : a));
+    // Legacy function, replaced by handleTurnIn
   };
 
   return (
@@ -88,19 +203,70 @@ export function StudentHome({ auth }: { auth: A }) {
           </div>
           <div className="space-y-2 mt-2">
             {session ? (
-              assignments.map(a => (
-                <div key={a.id} className={`p-3 border rounded flex justify-between items-center ${a.turnedIn ? 'bg-stone-50 border-stone-200' : 'bg-white border-stone-300'}`}>
-                  <div>
-                    <p className={`font-medium ${a.turnedIn ? 'text-stone-500' : 'text-stone-800'}`}>{a.title}</p>
-                    <p className="text-xs text-stone-500">{a.course} - Due {a.due}</p>
-                  </div>
-                  {a.turnedIn ? (
-                    <span className="text-stone-600 text-sm font-semibold">Submitted</span>
-                  ) : (
-                    <button className="btn2" onClick={() => turnInAssignment(a.id)}>Turn In</button>
+              loadingAssignments ? (
+                <div className="py-6 text-center text-stone-500 text-sm border border-stone-200 rounded">
+                  Loading assignments from Google Classroom...
+                </div>
+              ) : assignments.length === 0 ? (
+                <div className="py-6 text-center text-stone-500 text-sm border border-stone-200 rounded">
+                  No active assignments found in your courses.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Missing Assignments */}
+                  {assignments.filter(a => a.isMissing).length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-red-700 mb-2">Missing</h3>
+                      <div className="space-y-2">
+                        {assignments.filter(a => a.isMissing).map(a => (
+                          <div key={a.id} className="p-3 border border-red-200 bg-red-50 rounded flex justify-between items-center">
+                            <div>
+                              <p className="font-medium text-stone-800">{a.title}</p>
+                              <p className="text-xs text-red-600">{a.course} - Due {a.due}</p>
+                            </div>
+                            {uploadingId === a.id ? (
+                              <span className="text-stone-500 text-sm font-semibold">Uploading...</span>
+                            ) : (
+                              <label className="btn2 cursor-pointer bg-white">
+                                Upload & Turn In
+                                <input type="file" className="hidden" onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) handleTurnIn(a.id, a.submissionId, a.courseId, e.target.files[0]);
+                                }} />
+                              </label>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Upcoming Assignments */}
+                  {assignments.filter(a => !a.isMissing).length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-stone-700 mb-2">Upcoming</h3>
+                      <div className="space-y-2">
+                        {assignments.filter(a => !a.isMissing).map(a => (
+                          <div key={a.id} className="p-3 border border-stone-300 bg-white rounded flex justify-between items-center">
+                            <div>
+                              <p className="font-medium text-stone-800">{a.title}</p>
+                              <p className="text-xs text-stone-500">{a.course} - Due {a.due}</p>
+                            </div>
+                            {uploadingId === a.id ? (
+                              <span className="text-stone-500 text-sm font-semibold">Uploading...</span>
+                            ) : (
+                              <label className="btn2 cursor-pointer">
+                                Upload & Turn In
+                                <input type="file" className="hidden" onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) handleTurnIn(a.id, a.submissionId, a.courseId, e.target.files[0]);
+                                }} />
+                              </label>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
-              ))
+              )
             ) : (
               <div className="py-6 text-center text-stone-500 text-sm border-2 border-dashed border-stone-200 rounded">
                 Please connect your Google account to sync assignments.
