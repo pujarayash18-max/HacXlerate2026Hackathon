@@ -63,7 +63,6 @@ cd backend && python tests/test_panels.py    # 36 checks: uploads, modes, passwo
 - [ ] Set `NEXT_PUBLIC_ORG_NAME` and `NEXT_PUBLIC_CONTACT_EMAIL` so the Privacy policy and Terms pages name your institution and contact. Have your legal team review both pages and confirm DPDP Act consent flows.
 - [ ] Change `JWT_SECRET` and the admin password.
 - [ ] Favicon is `frontend/app/icon.svg`. Replace it with your institution's mark if you have one.
-- [ ] The app carries no "Made with" badge. Keep it that way in any hosting template you use.
 
 ## Notes and limits
 

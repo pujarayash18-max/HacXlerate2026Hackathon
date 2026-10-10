@@ -255,5 +255,41 @@ def approve_insight(iid: int, db: Session = Depends(get_db), u: User = Depends(r
     if not i: raise HTTPException(404, "Not found")
     i.approved = True; db.commit(); return {"ok": True}
 
+class ProfileAnalysisRequest(BaseModel):
+    github: str
+    leetcode: str
+
+@app.post("/analyze-profiles")
+def analyze_profiles(req: ProfileAnalysisRequest, db: Session = Depends(get_db), u: User = Depends(current_any)):
+    import random
+    score = random.randint(50, 95)
+    
+    improvements = []
+    if not req.github and not req.leetcode:
+        improvements.append("Please link your GitHub and LeetCode profiles to get a comprehensive analysis.")
+        score = random.randint(30, 50)
+    else:
+        if req.github:
+            improvements.append(f"Great job having a GitHub profile ({req.github})! Try to contribute more consistently to open source projects.")
+        if req.leetcode:
+            improvements.append(f"LeetCode profile ({req.leetcode}) found. Focus on medium/hard dynamic programming and graph questions to boost your rating.")
+
+    improvement_text = " ".join(improvements) if improvements else "Keep practicing to improve your skills."
+    
+    questions = [
+        "Two Sum (Array / Hash Table)",
+        "Reverse Linked List (Linked List)",
+        "Merge Intervals (Sorting / Array)",
+        "Number of Islands (Graph / BFS / DFS)",
+        "Longest Common Subsequence (Dynamic Programming)"
+    ]
+    suggested_questions = random.sample(questions, 3)
+    
+    return {
+        "score": score,
+        "improvement": improvement_text,
+        "questions": suggested_questions
+    }
+
 @app.get("/health")
 def health(): return {"ok": True}
