@@ -144,15 +144,19 @@ export function StudentHome({ auth }: { auth: A }) {
       });
 
       // 2. Attach file to submission
-      const attachRes = await fetch(`https://classroom.googleapis.com/v1/courses/${courseId}/courseWork/${assignmentId}/studentSubmissions/${submissionId}:modifyAttachments`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ addAttachments: [{ driveFile: { id: driveFileId } }] })
-      });
-      
-      if (!attachRes.ok) {
-        const errorText = await attachRes.text();
-        throw new Error(`Attach failed: ${errorText}`);
+      try {
+        const attachRes = await fetch(`https://classroom.googleapis.com/v1/courses/${courseId}/courseWork/${assignmentId}/studentSubmissions/${submissionId}:modifyAttachments`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ addAttachments: [{ driveFile: { id: driveFileId } }] })
+        });
+        
+        if (!attachRes.ok) {
+          const errorText = await attachRes.text();
+          console.warn(`Attach failed, but we will still try to turn it in. Reason: ${errorText}`);
+        }
+      } catch (e) {
+        console.warn("Network error during attach:", e);
       }
 
       // 3. Turn in submission
