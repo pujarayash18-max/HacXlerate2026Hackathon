@@ -252,16 +252,7 @@ export function StudentHome({ auth }: { auth: A }) {
                               <p className="font-medium text-stone-800">{a.title}</p>
                               <p className="text-xs text-red-600">{a.course} - Due {a.due}</p>
                             </div>
-                            {uploadingId === a.id ? (
-                              <span className="text-stone-500 text-sm font-semibold">Uploading...</span>
-                            ) : (
-                              <label className="btn2 cursor-pointer bg-white">
-                                Upload & Turn In
-                                <input type="file" className="hidden" onChange={(e) => {
-                                  if (e.target.files && e.target.files[0]) handleTurnIn(a.id, a.submissionId, a.courseId, e.target.files[0]);
-                                }} />
-                              </label>
-                            )}
+                            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Pending</span>
                           </div>
                         ))}
                       </div>
@@ -278,16 +269,7 @@ export function StudentHome({ auth }: { auth: A }) {
                               <p className="font-medium text-stone-800">{a.title}</p>
                               <p className="text-xs text-stone-500">{a.course} - Due {a.due}</p>
                             </div>
-                            {uploadingId === a.id ? (
-                              <span className="text-stone-500 text-sm font-semibold">Uploading...</span>
-                            ) : (
-                              <label className="btn2 cursor-pointer">
-                                Upload & Turn In
-                                <input type="file" className="hidden" onChange={(e) => {
-                                  if (e.target.files && e.target.files[0]) handleTurnIn(a.id, a.submissionId, a.courseId, e.target.files[0]);
-                                }} />
-                              </label>
-                            )}
+                            <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Upcoming</span>
                           </div>
                         ))}
                       </div>
@@ -462,18 +444,58 @@ function PlanBox({ p, tok, role, reload }: { key?: any; p: A; tok: string; role:
   );
 }
 
+const LANGUAGES = [
+  { id: "python", name: "Python", ext: "py", defaultCode: "def solve():\n    # Write your code here\n    pass\n\nprint(solve())" },
+  { id: "javascript", name: "JavaScript", ext: "js", defaultCode: "function solve() {\n    // Write your code here\n}\n\nconsole.log(solve());" },
+  { id: "java", name: "Java", ext: "java", defaultCode: "public class Main {\n    public static void main(String[] args) {\n        // Write your code here\n        System.out.println(\"Hello world\");\n    }\n}\n" },
+  { id: "cpp", name: "C++", ext: "cpp", defaultCode: "#include <iostream>\n\nint main() {\n    // Write your code here\n    std::cout << \"Hello world\" << std::endl;\n    return 0;\n}\n" },
+  { id: "c", name: "C", ext: "c", defaultCode: "#include <stdio.h>\n\nint main() {\n    // Write your code here\n    printf(\"Hello world\\n\");\n    return 0;\n}\n" },
+  { id: "rust", name: "Rust", ext: "rs", defaultCode: "fn main() {\n    // Write your code here\n    println!(\"Hello world\");\n}\n" }
+];
+
 function CompilerModal({ question, onClose }: { question: string, onClose: () => void }) {
-  const [code, setCode] = useState("def solve():\n    # Write your code here\n    pass\n");
+  const [lang, setLang] = useState(LANGUAGES[0]);
+  const [code, setCode] = useState(lang.defaultCode);
   const [output, setOutput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
 
-  const runCode = () => {
+  const handleLangChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newLang = LANGUAGES.find(l => l.id === e.target.value) || LANGUAGES[0];
+    setLang(newLang);
+    setCode(newLang.defaultCode);
+    setOutput("");
+  };
+
+  const runCode = async () => {
     setIsRunning(true);
-    setOutput("Running tests...");
-    setTimeout(() => {
-      setOutput("Accepted.\n\nRuntime: 32 ms\nMemory Usage: 14.2 MB\n\nYour code passed all test cases!");
-      setIsRunning(false);
-    }, 1500);
+    setOutput("Running code on remote server...");
+    
+    try {
+      const res = await fetch("https://emkc.org/api/v2/piston/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          language: lang.id,
+          version: "*",
+          files: [{ name: `main.${lang.ext}`, content: code }]
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (data.run) {
+        let out = data.run.output;
+        if (data.run.code !== 0) {
+          out += `\n\n[Exited with code ${data.run.code}]`;
+        }
+        setOutput(out || "Successfully executed with no output.");
+      } else {
+        setOutput("Error: " + (data.message || JSON.stringify(data)));
+      }
+    } catch (err: any) {
+      setOutput("Failed to connect to execution server: " + err.message);
+    }
+    setIsRunning(false);
   };
 
   return (
@@ -482,7 +504,13 @@ function CompilerModal({ question, onClose }: { question: string, onClose: () =>
         <div className="flex justify-between items-center p-3 border-b border-stone-200 bg-stone-50">
           <div className="flex items-center gap-3">
             <h2 className="font-semibold text-stone-800 text-lg">Compiler</h2>
-            <span className="text-xs font-medium bg-stone-200 text-stone-700 px-2 py-1 rounded">Python 3</span>
+            <select 
+              value={lang.id} 
+              onChange={handleLangChange}
+              className="text-sm font-medium bg-white text-stone-700 px-2 py-1 rounded border border-stone-300 focus:outline-none focus:ring-1 focus:ring-teal-700"
+            >
+              {LANGUAGES.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
           </div>
           <button onClick={onClose} className="text-stone-500 hover:text-stone-800 font-bold px-2 py-1">&times; Close</button>
         </div>
