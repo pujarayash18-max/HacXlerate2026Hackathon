@@ -1,0 +1,48 @@
+﻿@model List<Practical_6.Models.Product>
+
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>Product Catalog</title>
+</head>
+
+<body>
+
+    <h1>Product Catalog</h1>
+
+    <hr />
+
+    @foreach (var product in Model)
+    {
+        <div>
+            <h2>@product.ProductName</h2>
+
+            <img src="@product.ImageURL"
+                 width="300"
+                 height="300"
+                 alt="@product.ProductName" />
+
+            <p>
+                <b>Product ID:</b> @product.ProductId
+            </p>
+
+            <p>
+                <b>Product Category:</b> @product.ProductCategory
+            </p>
+
+            <p>
+                <b>Product Price:</b> ₹ @product.ProductPrice
+            </p>
+
+            <hr />
+        </div>
+    }
+
+</body>
+</html>
